@@ -47,7 +47,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
                          const planning_interface::MotionPlanRequest& req, const ChompParameters& params,
                          planning_interface::MotionPlanDetailedResponse& res) const
 {
-  ros::WallTime start_time = ros::WallTime::now();
+  ros::WallTime start_time = ros::WallTime::now(); 
   if (!planning_scene)
   {
     ROS_ERROR_STREAM_NAMED("chomp_planner", "No planning scene initialized.");
@@ -57,7 +57,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
 
   // get the specified start state
   robot_state::RobotState start_state = planning_scene->getCurrentState();
-  robot_state::robotStateMsgToRobotState(planning_scene->getTransforms(), req.start_state, start_state);
+  robot_state::robotStateMsgToRobotState(planning_scene->getTransforms(), req.start_state, start_state); //Convert a robot state (with accompanying extra transforms) to a kinematic state.
 
   if (!start_state.satisfiesBounds())
   {
@@ -66,8 +66,8 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
     return false;
   }
 
-  ChompTrajectory trajectory(planning_scene->getRobotModel(), 3.0, .03, req.group_name);
-  robotStateToArray(start_state, req.group_name, trajectory.getTrajectoryPoint(0));
+  ChompTrajectory trajectory(planning_scene->getRobotModel(), 3.0, .03, req.group_name); //持续时间，离散化
+  robotStateToArray(start_state, req.group_name, trajectory.getTrajectoryPoint(0)); //将开始状态存到数组第一个元素里面
 
   if (req.goal_constraints.size() != 1)
   {
@@ -77,17 +77,17 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   }
 
   if (req.goal_constraints[0].joint_constraints.empty() || !req.goal_constraints[0].position_constraints.empty() ||
-      !req.goal_constraints[0].orientation_constraints.empty())
-  {
-    ROS_ERROR_STREAM("Only joint-space goals are supported");
+      !req.goal_constraints[0].orientation_constraints.empty()) //只能有一个约束，所以用index 0 在关节空间假约束
+   {
+    ROS_ERROR_STREAM("Only joint-space goals are supported"); //在关节做规划
     res.error_code_.val = moveit_msgs::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS;
     return false;
   }
 
   const size_t goal_index = trajectory.getNumPoints() - 1;
-  robot_state::RobotState goal_state(start_state);
+  robot_state::RobotState goal_state(start_state); //start_state是当前位置 只是用来初始化goal_state
   for (const moveit_msgs::JointConstraint& joint_constraint : req.goal_constraints[0].joint_constraints)
-    goal_state.setVariablePosition(joint_constraint.joint_name, joint_constraint.position);
+    goal_state.setVariablePosition(joint_constraint.joint_name, joint_constraint.position); //将一个一个关节值加约束添加到goal_state里面去
   if (!goal_state.satisfiesBounds())
   {
     ROS_ERROR_STREAM_NAMED("chomp_planner", "Goal state violates joint limits");
@@ -99,19 +99,19 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   const moveit::core::JointModelGroup* model_group =
       planning_scene->getRobotModel()->getJointModelGroup(req.group_name);
   // fix the goal to move the shortest angular distance for wrap-around joints:
-  for (size_t i = 0; i < model_group->getActiveJointModels().size(); i++)
+  for (size_t i = 0; i < model_group->getActiveJointModels().size(); i++)  //遍历关节组关节数目
   {
-    const moveit::core::JointModel* model = model_group->getActiveJointModels()[i];
+    const moveit::core::JointModel* model = model_group->getActiveJointModels()[i];  //第i个关节
     const moveit::core::RevoluteJointModel* revolute_joint =
-        dynamic_cast<const moveit::core::RevoluteJointModel*>(model);
+        dynamic_cast<const moveit::core::RevoluteJointModel*>(model);  //做类型转化 RevoluteJointModelt继承JointModel
 
     if (revolute_joint != nullptr)
     {
-      if (revolute_joint->isContinuous())
+      if (revolute_joint->isContinuous()) // ??? 
       {
         double start = (trajectory)(0, i);
         double end = (trajectory)(goal_index, i);
-        ROS_INFO_STREAM("Start is " << start << " end " << end << " short " << shortestAngularDistance(start, end));
+        ROS_INFO_STREAM("Start is " << start << " end " << end << " short " << shortestAngularDistance(start, end)); //???shortestAngularDistance 这个函数不懂 稍后再看
         (trajectory)(goal_index, i) = start + shortestAngularDistance(start, end);
       }
     }
@@ -124,9 +124,9 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
     trajectory.fillInLinearInterpolation();
   else if (params.trajectory_initialization_method_.compare("cubic") == 0)
     trajectory.fillInCubicInterpolation();
-  else if (params.trajectory_initialization_method_.compare("fillTrajectory") == 0)
+  else if (params.trajectory_initialization_method_.compare("fillTrajectory") == 0)  //通过已有轨迹的到轨迹
   {
-    if (!(trajectory.fillInFromTrajectory(*res.trajectory_[0])))
+    if (!(trajectory.fillInFromTrajectory(*res.trajectory_[0])))  //??? res.trajectory_[0]
     {
       ROS_ERROR_STREAM_NAMED("chomp_planner", "Input trajectory has less than 2 points, "
                                               "trajectory must contain at least start and goal state");
@@ -153,7 +153,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   org_planning_time_limit = params.planning_time_limit_;
   org_max_iterations = params.max_iterations_;
 
-  std::unique_ptr<ChompOptimizer> optimizer;
+  std::unique_ptr<ChompOptimizer> optimizer; //unique_ptr 管理资源
 
   // create a non_const_params variable which stores the non constant version of the const params variable
   ChompParameters params_nonconst = params;
@@ -166,7 +166,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
       // increase learning rate in hope to find a successful path; increase ridge factor to avoid obstacles; add 5
       // additional secs in hope to find a solution; increase maximum iterations
       params_nonconst.setRecoveryParams(params_nonconst.learning_rate_ + 0.02, params_nonconst.ridge_factor_ + 0.002,
-                                        params_nonconst.planning_time_limit_ + 5, params_nonconst.max_iterations_ + 50);
+                                        params_nonconst.planning_time_limit_ + 5, params_nonconst.max_iterations_ + 50);  //涉及到调参了
     }
 
     // initialize a ChompOptimizer object to load up the optimizer with default parameters or with updated parameters in
@@ -228,12 +228,12 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
     for (const robot_state::JointModel* jm : result->getGroup()->getActiveJointModels())
     {
       assert(jm->getVariableCount() == 1);
-      state->setVariablePosition(jm->getFirstVariableIndex(), source[joint_index++]);
+      state->setVariablePosition(jm->getFirstVariableIndex(), source[joint_index++]); //就是将每个关节值设置到state  API void moveit::core::RobotState::setVariablePosition ( int index, double value)
     }
-    result->addSuffixWayPoint(state, 0.0);
+    result->addSuffixWayPoint(state, 0.0);  //??? duration 为0.0
   }
 
-  res.trajectory_.resize(1);
+  res.trajectory_.resize(1); //分配内存，解决[] 非法内存访问
   res.trajectory_[0] = result;
 
   ROS_DEBUG_NAMED("chomp_planner", "Bottom took %f sec to create", (ros::WallTime::now() - create_time).toSec());

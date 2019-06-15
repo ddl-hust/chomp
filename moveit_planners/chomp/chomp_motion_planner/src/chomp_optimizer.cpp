@@ -58,14 +58,14 @@ ChompOptimizer::ChompOptimizer(ChompTrajectory* trajectory, const planning_scene
   , robot_model_(planning_scene->getRobotModel())
   , planning_group_(planning_group)
   , parameters_(parameters)
-  , group_trajectory_(*full_trajectory_, planning_group_, DIFF_RULE_LENGTH)
+  , group_trajectory_(*full_trajectory_, planning_group_, DIFF_RULE_LENGTH)  //DIFF_RULE_LENGTH??? 构造函数重载
   , planning_scene_(planning_scene)
   , state_(start_state)
   , start_state_(start_state)
   , initialized_(false)
 {
   std::vector<std::string> cd_names;
-  planning_scene->getCollisionDetectorNames(cd_names);
+  planning_scene->getCollisionDetectorNames(cd_names); //碰撞检测器名字
 
   ROS_INFO_STREAM("The following collision detectors are available in the planning scene.");
   for (const std::string& cd_name : cd_names)
@@ -81,7 +81,7 @@ ChompOptimizer::ChompOptimizer(ChompTrajectory* trajectory, const planning_scene
   {
     ROS_WARN_STREAM("Could not initialize hybrid collision world from planning scene");
     return;
-  }
+  }  //世界碰撞检测
 
   hy_robot_ = dynamic_cast<const collision_detection::CollisionRobotHybrid*>(
       planning_scene->getCollisionRobot(planning_scene->getActiveCollisionDetectorName()).get());
@@ -89,7 +89,7 @@ ChompOptimizer::ChompOptimizer(ChompTrajectory* trajectory, const planning_scene
   {
     ROS_WARN_STREAM("Could not initialize hybrid collision robot from planning scene");
     return;
-  }
+  } //机器人自生碰撞检测
   initialize();
 }
 
@@ -138,14 +138,14 @@ void ChompOptimizer::initialize()
       max_cost_scale = cost_scale;
   }
 
-  // scale the smoothness costs
+  // scale the smoothness costs  //scale 又是什么意思
   for (int i = 0; i < num_joints_; i++)
   {
     joint_costs_[i].scale(max_cost_scale);
   }
 
   // allocate memory for matrices:
-  smoothness_increments_ = Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);
+  smoothness_increments_ = Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);  //行：waypoint 列：关节个数
   collision_increments_ = Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);
   final_increments_ = Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);
   smoothness_derivative_ = Eigen::VectorXd::Zero(num_vars_all_);
@@ -168,7 +168,6 @@ void ChompOptimizer::initialize()
   collision_point_potential_.resize(num_vars_all_, std::vector<double>(num_collision_points_));
   collision_point_vel_mag_.resize(num_vars_all_, std::vector<double>(num_collision_points_));
   collision_point_potential_gradient_.resize(num_vars_all_, EigenSTL::vector_Vector3d(num_collision_points_));
-
   collision_free_iteration_ = 0;
   is_collision_free_ = false;
   state_is_in_collision_.resize(num_vars_all_);
@@ -551,7 +550,7 @@ bool ChompOptimizer::isCurrentTrajectoryMeshToMeshCollisionFree() const
   }
   moveit_msgs::RobotState start_state_msg;
   moveit::core::robotStateToRobotStateMsg(start_state_, start_state_msg);
-  return planning_scene_->isPathValid(start_state_msg, traj, planning_group_);
+  return planning_scene_->isPathValid(start_state_msg, traj, planning_group_);  //
 }
 
 /// TODO: HMC BASED COMMENTED CODE BELOW, Need to uncomment and perform extensive testing by varying the HMC parameters
@@ -588,12 +587,12 @@ bool ChompOptimizer::isCurrentTrajectoryMeshToMeshCollisionFree() const
 
 // }
 
-void ChompOptimizer::calculateSmoothnessIncrements()
+void ChompOptimizer::calculateSmoothnessIncrements()  //check
 {
   for (int i = 0; i < num_joints_; i++)
   {
     joint_costs_[i].getDerivative(group_trajectory_.getJointTrajectory(i), smoothness_derivative_);
-    smoothness_increments_.col(i) = -smoothness_derivative_.segment(group_trajectory_.getStartIndex(), num_vars_free_);
+    smoothness_increments_.col(i) = -smoothness_derivative_.segment(group_trajectory_.getStartIndex(), num_vars_free_); //
   }
 }
 

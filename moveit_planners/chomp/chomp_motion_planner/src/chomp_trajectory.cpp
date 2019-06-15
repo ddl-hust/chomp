@@ -200,10 +200,10 @@ bool ChompTrajectory::fillInFromTrajectory(const robot_trajectory::RobotTrajecto
     return false;
 
   // variables for populating the CHOMP trajectory with correct number of trajectory points
-  const unsigned int repeated_factor = num_chomp_trajectory_points / num_input_points;
+  const unsigned int repeated_factor = num_chomp_trajectory_points / num_input_points; //chomp轨迹点/输入填充轨迹点
   const unsigned int repeated_balance_factor = num_chomp_trajectory_points % num_input_points;
 
-  // response_point_id stores the point at the stored index location.
+  // response_point_id stores the point at the stored index location. 就是在chomp轨迹对应下标点
   size_t response_point_id = 0;
   if (num_chomp_trajectory_points >= num_input_points)
   {
@@ -239,18 +239,21 @@ bool ChompTrajectory::fillInFromTrajectory(const robot_trajectory::RobotTrajecto
   }  // end of else
   return true;
 }
-
+//可以理解为将RobotState 里面的关节值如何填充到MatrixXd::RowXpr
+//可以直接使用 util.h 里面的robotStateToArray啊啊啊
 void ChompTrajectory::assignCHOMPTrajectoryPointFromInputTrajectoryPoint(
     const robot_trajectory::RobotTrajectory& trajectory, size_t trajectory_point_index,
     size_t chomp_trajectory_point_index)
 {
   const robot_state::RobotState& source = trajectory.getWayPoint(trajectory_point_index);
   Eigen::MatrixXd::RowXpr target = getTrajectoryPoint(chomp_trajectory_point_index);
-  assert(trajectory.getGroup()->getActiveJointModels().size() == static_cast<size_t>(target.cols()));
+  assert(trajectory.getGroup()->getActiveJointModels().size() == static_cast<size_t>(target.cols())); //判断输入轨迹关节数目是否与chomp列数目(关节个数)一致
+  
+  //robotStateToArray(source, const std::string& planning_group_name,target)  planning_group_name好像没有用到
   size_t joint_index = 0;
   for (const robot_state::JointModel* jm : trajectory.getGroup()->getActiveJointModels())
   {
-    assert(jm->getVariableCount() == 1);
+    assert(jm->getVariableCount() == 1); //确保是单关节
     target[joint_index++] = source.getVariablePosition(jm->getJointIndex());
   }
 }
