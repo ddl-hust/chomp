@@ -43,13 +43,53 @@
 #include <moveit/planning_scene/planning_scene.h>
 #include <eigen3/Eigen/LU>
 #include <eigen3/Eigen/Core>
+using namespace Eigen;     // 改成这样亦可 using Eigen::MatrixXd; 
+using namespace std;
+
+
 
 namespace chomp
 {
+  using namespace Eigen;     // 改成这样亦可 using Eigen::MatrixXd; 
+  using namespace std;
 double getRandomDouble()
 {
   return ((double)random() / (double)RAND_MAX);
 }
+
+Eigen::MatrixXd ChompOptimizer::csv2matrix(std::string path) {
+	std::ifstream fin;
+	fin.open(path);
+	std::string line;
+	vector<double>values;
+	int rows = 0;
+	while (getline(fin,line))
+	{
+		stringstream ss(line);
+		std::string cell;
+		while (getline(ss, cell, ',')) {	
+			double value = stod(cell);
+			values.push_back(value);
+		}
+		rows++;
+	}
+	MatrixXd re = MatrixXd::Map(&values[0], rows, values.size() / rows);
+	cout << re.size() << endl;
+	return re;
+}
+
+//ROS_INFO_STREAM("示教轨迹:"<<demstration_trajectory_);
+void ChompOptimizer::GetCovainceMatrixs(std::string pathname, std::vector<Eigen::MatrixXd>&cov_matrixs){
+	string str1 = pathname;
+	for (int i = 1; i < 99; i++) {  //协方差矩阵序列下标从1开始
+		std::string str2="/cov";
+		std::string str3 = to_string(i);
+		std::string str4 = ".csv";
+		std::string filepath = str1 + str2 + str3+str4;
+		MatrixXd temp = csv2matrix(filepath);
+		cov_matrixs.push_back(temp);
+	}
+	}
 
 ChompOptimizer::ChompOptimizer(ChompTrajectory* trajectory, const planning_scene::PlanningSceneConstPtr& planning_scene,
                                const std::string& planning_group, const ChompParameters* parameters,
@@ -96,6 +136,15 @@ ChompOptimizer::ChompOptimizer(ChompTrajectory* trajectory, const planning_scene
 void ChompOptimizer::initialize()
 {
   // init some variables:
+   //初始化示教轨迹
+  string demstration_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/chomp/chomp_motion_planner/src/Pdtw_head_forward_average.csv";  //一个示教均值轨迹路径
+  demstration_trajectory_=csv2matrix(demstration_pathname);
+  ROS_INFO_STREAM("demstration_trajectory:"<<demstration_trajectory_);
+  //初始化sigma协方差
+  string sigma_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/chomp/chomp_motion_planner/src/Pdtw_head_forward_cov";
+  GetCovainceMatrixs(sigma_pathname,demo_trajectory_sigma);
+  ROS_INFO_STREAM("demstration_trajectory_sigma:"<<demo_trajectory_sigma[0]);
+  
   num_vars_free_ = group_trajectory_.getNumFreePoints();
   num_vars_all_ = group_trajectory_.getNumPoints();
   num_joints_ = group_trajectory_.getNumJoints();
@@ -133,12 +182,12 @@ void ChompOptimizer::initialize()
     derivative_costs[1] = joint_cost * parameters_->smoothness_cost_acceleration_;
     derivative_costs[2] = joint_cost * parameters_->smoothness_cost_jerk_;
     joint_costs_.push_back(ChompCost(group_trajectory_, i, derivative_costs, parameters_->ridge_factor_));
-    double cost_scale = joint_costs_[i].getMaxQuadCostInvValue();
+    double cost_scale = joint_costs_[i].getMaxQuadCostInvValue(); //找到所有关节角
     if (max_cost_scale < cost_scale)
       max_cost_scale = cost_scale;
   }
 
-  // scale the smoothness costs  //scale 又是什么意思
+  // scale the smoothness costs  //将所有关节序列按照最大代价函数尺度缩放
   for (int i = 0; i < num_joints_; i++)
   {
     joint_costs_[i].scale(max_cost_scale);
@@ -362,8 +411,8 @@ bool ChompOptimizer::optimize()
         last_improvement_iteration_ = iteration_;
       }
     }
-    calculateSmoothnessIncrements();
-    calculateCollisionIncrements();
+    calculateSmoothnessIncrements(); 
+    calculateCollisionIncrements(); //no check
     calculateTotalIncrements();
 
     /// TODO: HMC BASED COMMENTED CODE BELOW, Need to uncomment and perform extensive testing by varying the HMC
@@ -383,7 +432,7 @@ bool ChompOptimizer::optimize()
     //   stochasticity_factor_ *= parameters_->getHmcAnnealingFactor();
     // }
 
-    handleJointLimits();
+    handleJointLimits(); //no check
     updateFullTrajectory();
 
     if (iteration_ % 10 == 0)
