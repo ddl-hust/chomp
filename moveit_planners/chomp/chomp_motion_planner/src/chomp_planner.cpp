@@ -66,7 +66,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
     return false;
   }
 
-  ChompTrajectory trajectory(planning_scene->getRobotModel(), 3.0, .03, req.group_name); //持续时间，离散化
+  ChompTrajectory trajectory(planning_scene->getRobotModel(), 3.0, .03, req.group_name); //轨迹初始化，
   robotStateToArray(start_state, req.group_name, trajectory.getTrajectoryPoint(0)); //将开始状态存到数组第一个元素里面
 
   if (req.goal_constraints.size() != 1)
@@ -84,7 +84,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
     return false;
   }
 
-  const size_t goal_index = trajectory.getNumPoints() - 1;
+  const size_t goal_index = trajectory.getNumPoints() - 1; //goal index=100 3/0.03=100
   robot_state::RobotState goal_state(start_state); //start_state是当前位置 只是用来初始化goal_state
   for (const moveit_msgs::JointConstraint& joint_constraint : req.goal_constraints[0].joint_constraints)
     goal_state.setVariablePosition(joint_constraint.joint_name, joint_constraint.position); //将一个一个关节值加约束添加到goal_state里面去
@@ -94,10 +94,11 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
     res.error_code_.val = moveit_msgs::MoveItErrorCodes::INVALID_ROBOT_STATE;
     return false;
   }
-  robotStateToArray(goal_state, req.group_name, trajectory.getTrajectoryPoint(goal_index));
+  robotStateToArray(goal_state, req.group_name, trajectory.getTrajectoryPoint(goal_index)); 
 
   const moveit::core::JointModelGroup* model_group =
       planning_scene->getRobotModel()->getJointModelGroup(req.group_name);
+/******************************没理解********************************* */
   // fix the goal to move the shortest angular distance for wrap-around joints:
   for (size_t i = 0; i < model_group->getActiveJointModels().size(); i++)  //遍历关节组关节数目
   {
@@ -116,7 +117,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
       }
     }
   }
-
+/**************************************************************************** */
   // fill in an initial trajectory based on user choice from the chomp_config.yaml file
   if (params.trajectory_initialization_method_.compare("quintic-spline") == 0)
     trajectory.fillInMinJerk();
@@ -125,7 +126,35 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   else if (params.trajectory_initialization_method_.compare("cubic") == 0)
     trajectory.fillInCubicInterpolation();
   else if (params.trajectory_initialization_method_.compare("fillTrajectory") == 0)  //通过已有轨迹的到轨迹
+  {  
+    ROS_INFO_NAMED("chomp_planner", "CHOMP trajectory initialized using method: %s ",
+                 (params.trajectory_initialization_method_).c_str());
+    /* ************************需要在此处填充我们自己轨迹*****************************
+    这就需要将保存在matrixXd 里面的轨迹转化为robottrajectorty 消息填充到res.trajectory_*/
+  auto result = std::make_shared<robot_trajectory::RobotTrajectory>(planning_scene->getRobotModel(), req.group_name);
+  // fill in the entire trajectory
+  std::string demstration_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/Pdtw_head_forward_average.csv";
+  Eigen::MatrixXd  source_trajectory = chomp::ChompOptimizer::csv2matrix(demstration_pathname).transpose(); //静态成员函数
+  ROS_INFO_STREAM("fill trjajectory:"<<source_trajectory);
+  for (size_t i = 0; i <= source_trajectory.rows(); i++)
   {
+    Eigen::VectorXd() source =  source_trajectory.row(i);
+    
+    ROS_INFO_STREAM("fill trjajectory:"<<source);
+    auto state = std::make_shared<robot_state::RobotState>(start_state);
+    size_t joint_index = 0;
+    for (const robot_state::JointModel* jm : result->getGroup()->getActiveJointModels())
+    {
+      assert(jm->getVariableCount() == 1);
+      state->setVariablePosition(jm->getFirstVariableIndex(), source[joint_index++]); //就是将每个关节值设置到state  API void moveit::core::RobotState::setVariablePosition ( int index, double value)
+    }
+    result->addSuffixWayPoint(state, 0.0);  //??? duration 为0.0
+  }
+
+  res.trajectory_.resize(1); //分配内存，解决[] 非法内存访问
+  res.trajectory_[0] = result;
+
+    /********************填充结束******************* */
     if (!(trajectory.fillInFromTrajectory(*res.trajectory_[0])))  //??? res.trajectory_[0]
     {
       ROS_ERROR_STREAM_NAMED("chomp_planner", "Input trajectory has less than 2 points, "

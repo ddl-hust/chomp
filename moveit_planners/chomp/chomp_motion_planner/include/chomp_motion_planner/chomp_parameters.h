@@ -66,7 +66,7 @@ public:
   double smoothness_cost_weight_;  /// smoothness_cost_weight parameters controls its weight in the final cost that
                                    /// CHOMP is actually optimizing over
   double obstacle_cost_weight_;  /// controls the weight to be given to obstacles towards the final cost CHOMP optimizes
-                                 /// over
+  double demo_cost_weight_;  //示教代价权重                          /// over
   double learning_rate_;  /// learning rate used by the optimizer to find the local / global minima while reducing the
                           /// total cost
 

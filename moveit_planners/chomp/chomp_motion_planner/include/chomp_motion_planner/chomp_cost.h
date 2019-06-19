@@ -78,7 +78,8 @@ private:
 template <typename Derived>
 void ChompCost::getDerivative(Eigen::MatrixXd::ColXpr joint_trajectory, Eigen::MatrixBase<Derived>& derivative) const
 {
-  derivative = (quad_cost_full_ * (2.0 * joint_trajectory));
+  derivative = (quad_cost_full_ * (2.0 * joint_trajectory)); 
+
   
 }
 

@@ -74,7 +74,7 @@ Eigen::MatrixXd ChompOptimizer::csv2matrix(std::string path) {
 		rows++;
 	}
 	MatrixXd re = MatrixXd::Map(&values[0], rows, values.size() / rows);
-	cout << re.size() << endl;
+	//cout << re.size() << endl;
 	return re;
 }
 
@@ -137,20 +137,24 @@ void ChompOptimizer::initialize()
 {
   // init some variables:
    //初始化示教轨迹
-  string demstration_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/chomp/chomp_motion_planner/src/Pdtw_head_forward_average.csv";  //一个示教均值轨迹路径
-  demstration_trajectory_=csv2matrix(demstration_pathname);
-  ROS_INFO_STREAM("demstration_trajectory:"<<demstration_trajectory_);
+  string demstration_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/Pdtw_head_forward_average.csv";  //一个示教均值轨迹路径
+  demo_joint_trajectory=csv2matrix(demstration_pathname);
+  ROS_INFO_STREAM("demo trajectory  row:"<<demo_joint_trajectory.rows()<<"   coloum:"<<demo_joint_trajectory.cols());
   //初始化sigma协方差
-  string sigma_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/chomp/chomp_motion_planner/src/Pdtw_head_forward_cov";
+  string sigma_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/Pdtw_head_forward_cov";
   GetCovainceMatrixs(sigma_pathname,demo_trajectory_sigma);
-  ROS_INFO_STREAM("demstration_trajectory_sigma:"<<demo_trajectory_sigma[0]);
+  //for(int i =0;i<demo_trajectory_sigma.size();i++){
+   // ROS_INFO_STREAM("demstration_trajectory_sigma:"<<i<<demo_trajectory_sigma[0]);
+  //}
+  
   
   num_vars_free_ = group_trajectory_.getNumFreePoints();
   num_vars_all_ = group_trajectory_.getNumPoints();
   num_joints_ = group_trajectory_.getNumJoints();
-
+  ROS_INFO_STREAM(" optimized trajectory row:"<<num_joints_<<"   coloum:"<<num_vars_free_);
   free_vars_start_ = group_trajectory_.getStartIndex();
   free_vars_end_ = group_trajectory_.getEndIndex();
+
 
   collision_detection::CollisionRequest req;
   collision_detection::CollisionResult res;
@@ -195,7 +199,9 @@ void ChompOptimizer::initialize()
 
   // allocate memory for matrices:
   smoothness_increments_ = Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);  //行：waypoint 列：关节个数
-  collision_increments_ = Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);
+  collision_increments_ =  Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);
+  demo_increments_       = Eigen::MatrixXd::Zero(num_vars_free_, num_joints_); //!demo_increments 没有初始化 导致矩阵一直不能赋值
+  demo_trajectory_deviation=Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);
   final_increments_ = Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);
   smoothness_derivative_ = Eigen::VectorXd::Zero(num_vars_all_);
   jacobian_ = Eigen::MatrixXd::Zero(3, num_joints_);
@@ -373,7 +379,11 @@ bool ChompOptimizer::optimize()
     ROS_DEBUG_STREAM("Forward kinematics took " << (ros::WallTime::now() - for_time));
     double c_cost = getCollisionCost();
     double s_cost = getSmoothnessCost();
-    double cost = c_cost + s_cost;
+    ROS_INFO_STREAM("smooth cost："<<s_cost);
+    double d_cost = getDemoCost();//示教代价
+  //  double cost = cCost + sCost;
+  
+     double cost = c_cost + s_cost +d_cost;
 
     // ROS_INFO_STREAM("Collision cost " << cCost << " smoothness cost " << sCost);
 
@@ -413,6 +423,7 @@ bool ChompOptimizer::optimize()
     }
     calculateSmoothnessIncrements(); 
     calculateCollisionIncrements(); //no check
+    calculateDemonstrationIncrements();
     calculateTotalIncrements();
 
     /// TODO: HMC BASED COMMENTED CODE BELOW, Need to uncomment and perform extensive testing by varying the HMC
@@ -722,6 +733,27 @@ void ChompOptimizer::calculateCollisionIncrements()
   // cout << collision_increments_ << endl;
 }
 
+void ChompOptimizer::calculateDemonstrationIncrements()
+{
+ // demo_trajectory_sigma_=Eigen::MatrixXd::Zero(num_joints_, num_joints_);
+ // demo_trajectory_sigma_inv_=Eigen::MatrixXd::Zero(num_joints_, num_joints_);
+ //   demo_joint_trajectory=Eigen::MatrixXd::Zero(num_vars_free_, num_joints_);
+  for (int i = free_vars_start_; i <= free_vars_end_; i++)
+  {
+      demo_trajectory_sigma_=demo_trajectory_sigma[i];
+      demo_trajectory_sigma_inv_=demo_trajectory_sigma_.inverse();
+      demo_trajectory_deviation.row(i)=group_trajectory_.getTrajectoryPoint(i)-demo_joint_trajectory.row(i);
+      demo_increments_.row(i).transpose() =-demo_trajectory_sigma_inv_*(demo_trajectory_deviation.row(i).transpose());
+
+
+    //增量的第i列等于负的smoothness_derivative切片从开始到num_vars_free_，即去掉头尾
+  }
+}
+/****************************************************************************************/
+/*************************自己写的模板损失增量函数结束，用于求轨迹增量******************************/
+/****************************************************************************************/
+
+/** \brief 计算伪逆，在calculateCollisionIncrements()中被调用 */
 void ChompOptimizer::calculatePseudoInverse()
 {
   jacobian_jacobian_tranpose_ =
@@ -736,7 +768,8 @@ void ChompOptimizer::calculateTotalIncrements()
     final_increments_.col(i) =
         parameters_->learning_rate_ * (joint_costs_[i].getQuadraticCostInverse() *
                                        (parameters_->smoothness_cost_weight_ * smoothness_increments_.col(i) +
-                                        parameters_->obstacle_cost_weight_ * collision_increments_.col(i)));
+                                        parameters_->obstacle_cost_weight_ * collision_increments_.col(i)+
+                                        parameters_->demo_cost_weight_ * demo_increments_.col(i)));
   }
 }
 
@@ -813,7 +846,50 @@ double ChompOptimizer::getCollisionCost()
 
   return parameters_->obstacle_cost_weight_ * collision_cost;
 }
+/****************************************************************************************/
+/*************************自己写的模板损失函数开始，用于求模板损失值******************************/
+/****************************************************************************************/
 
+double ChompOptimizer::getDemoCost()
+{
+  double demo_cost = 0.0;
+
+
+  // joint costs:
+  cout<<"free_vars_start_:"<<free_vars_start_<<"free_vars_end_:"<<free_vars_end_<<endl;
+  for (int i = free_vars_start_; i < free_vars_end_; i++) //范围 [6,104）
+  {
+
+
+      // demo_trajectory_sigma_[i]为第i个方差，7*7
+      // demo_trajectory_sigma_inv_[i] 为第i个方差的逆7*7
+      // demo_joint_trajectory[i] 为第i个 模板关节配置1*7
+      // demo_trajectory_deviation[i] 为第i时间 每个关节轨迹偏差1*7
+      // demo_joint_cost 为第i时间 关节cost
+
+      Eigen::MatrixXd demo_joint_trajectory_T=demo_joint_trajectory.transpose();
+      //ROS_INFO_STREAM("after T demo trajectory ros :"<<demo_joint_trajectory_T.rows());
+      demo_trajectory_sigma_=demo_trajectory_sigma[i-6];
+      demo_trajectory_sigma_inv_=demo_trajectory_sigma_.inverse();
+      //ROS_INFO_STREAM("group_trajectoy row: "<<group_trajectory_.getNumFreePoints());
+      //ROS_INFO_STREAM("demo_trajectory_deviation row: "<<demo_trajectory_deviation.rows());
+      demo_trajectory_deviation.row(i-6)=group_trajectory_.getTrajectoryPoint(i)-demo_joint_trajectory_T.row(i-6);//两个轨迹点数目相同？
+      //ROS_INFO_STREAM("demo_trajectory_deviation row: "<<demo_trajectory_deviation.row(i-6));
+      demo_increments_.row(i) =(-demo_trajectory_sigma_inv_*(demo_trajectory_deviation.row(i-6).transpose())).transpose();
+       //ROS_INFO_STREAM("demo_increments_ row: "<<demo_increments_.row(i));
+      // 取出第i行相减
+     demo_cost +=
+              demo_trajectory_deviation.row(i-6)*demo_trajectory_sigma_inv_*(demo_trajectory_deviation.row(i-6).transpose());
+
+
+   }
+  cout<<"demo cost:"<<demo_cost<<endl;
+  return parameters_->demo_cost_weight_ * demo_cost;
+  // 最后返回值是有权的，权重来自文档初值
+}
+/****************************************************************************************/
+/*************************自己写的模板损失函数结束，用于求模板损失值******************************/
+/****************************************************************************************/
 void ChompOptimizer::computeJointProperties(int trajectory_point)
 {
   for (int j = 0; j < num_joints_; j++)

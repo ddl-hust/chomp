@@ -49,7 +49,12 @@
 #include <Eigen/Core>
 #include <Eigen/StdVector>
 #include <vector>
-
+//处理csv
+#include <fstream>
+#include <iostream>
+#include <Eigen/Dense>
+#include <stdio.h>
+#include<string>
 namespace chomp
 {
 class ChompOptimizer
@@ -81,6 +86,9 @@ public:
   {
     return is_collision_free_;
   }
+  //辅助函数
+  static Eigen::MatrixXd csv2matrix(std::string path);
+  static void GetCovainceMatrixs(std::string pathname, std::vector<Eigen::MatrixXd>&cov_matrixs);
 
 private:
   inline double getPotential(double field_distance, double radius, double clearence)
@@ -109,7 +117,11 @@ private:
   template <typename Derived>
   void getJacobian(int trajectoryPoint, Eigen::Vector3d& collision_point_pos, std::string& jointName,
                    Eigen::MatrixBase<Derived>& jacobian) const;
-
+// 以下是新增
+  template <typename Derived>
+  void getEndJacobian(int trajectory_point, Eigen::Vector3d& end_point_pos, std::string& end_joint_name,
+                                      Eigen::MatrixBase<Derived>& endjacobian) const;
+  // 以上是新增
   // void getRandomState(const moveit::core::RobotState& currentState,
   //                     const std::string& group_name,
   //                     Eigen::VectorXd& state_vec);
@@ -154,6 +166,11 @@ private:
   std::vector<EigenSTL::vector_Vector3d> joint_positions_;
   Eigen::MatrixXd group_trajectory_backup_;
   Eigen::MatrixXd best_group_trajectory_;
+  Eigen::MatrixXd demo_joint_trajectory;// 新加入，表达整个demo矩阵 维度 (7,98)
+  Eigen::MatrixXd demo_trajectory_deviation;// 新加入，表达整个demo矩阵
+  std::vector<Eigen::MatrixXd>demo_trajectory_sigma;//示教轨迹协方差序列
+   Eigen::MatrixXd demo_trajectory_sigma_;
+  Eigen::MatrixXd demo_trajectory_sigma_inv_;
   double best_group_trajectory_cost_;
   int last_improvement_iteration_;
   unsigned int num_collision_free_iterations_;
@@ -173,6 +190,7 @@ private:
 
   Eigen::MatrixXd smoothness_increments_;
   Eigen::MatrixXd collision_increments_;
+  Eigen::MatrixXd demo_increments_;
   Eigen::MatrixXd final_increments_;
 
   // temporary variables for all functions:
@@ -206,6 +224,7 @@ private:
   void initialize();
   void calculateSmoothnessIncrements();
   void calculateCollisionIncrements();
+    void calculateDemonstrationIncrements();// 新增
   void calculateTotalIncrements();
   void performForwardKinematics();
   void addIncrementsToTrajectory();
@@ -214,6 +233,7 @@ private:
   void handleJointLimits();
   double getTrajectoryCost();
   double getSmoothnessCost();
+  double getDemoCost();// 新增
   double getCollisionCost();
   void perturbTrajectory();
   void getRandomMomentum();

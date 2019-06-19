@@ -47,9 +47,9 @@ ChompCost::ChompCost(const ChompTrajectory& trajectory, int joint_number, const 
                      double ridge_factor)
 {
   int num_vars_all = trajectory.getNumPoints(); //轨迹wayoints个数
-  ROS_INFO_STREAM("waypoints size:"<<num_vars_all);
+  //ROS_INFO_STREAM("waypoints size:"<<num_vars_all);
   int num_vars_free = num_vars_all - 2 * (DIFF_RULE_LENGTH - 1);
-  ROS_WARN_STREAM("num of free vars is:"<<num_vars_free);
+  //ROS_WARN_STREAM("num of free vars is:"<<num_vars_free);
   MatrixXd diff_matrix = MatrixXd::Zero(num_vars_all, num_vars_all);
   quad_cost_full_ = MatrixXd::Zero(num_vars_all, num_vars_all);
 
@@ -59,7 +59,7 @@ ChompCost::ChompCost(const ChompTrajectory& trajectory, int joint_number, const 
   {
     multiplier *= trajectory.getDiscretization();
     diff_matrix = getDiffMatrix(num_vars_all, &DIFF_RULES[i][0]);
-    ROS_INFO_STREAM("diff_matrix size:"<<diff_matrix.size());
+   // ROS_INFO_STREAM("diff_matrix size:"<<diff_matrix.size());
     //ROS_INFO_STREAM("diff_matrix :"<<diff_matrix);
     quad_cost_full_ += (derivative_costs[i] * multiplier) * (diff_matrix.transpose() * diff_matrix); //？？？
   }
@@ -67,7 +67,7 @@ ChompCost::ChompCost(const ChompTrajectory& trajectory, int joint_number, const 
 
   // extract the quad cost just for the free variables:
   quad_cost_ = quad_cost_full_.block(DIFF_RULE_LENGTH - 1, DIFF_RULE_LENGTH - 1, num_vars_free, num_vars_free);
-   ROS_INFO_STREAM("quad_cost size:"<<quad_cost_.size());
+   //ROS_INFO_STREAM("quad_cost size:"<<quad_cost_.size());
   // invert the matrix:
   quad_cost_inv_ = quad_cost_.inverse();
 

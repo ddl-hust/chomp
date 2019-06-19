@@ -45,6 +45,7 @@ ChompParameters::ChompParameters()
   max_iterations_after_collision_free_ = 5;
   smoothness_cost_weight_ = 0.1;
   obstacle_cost_weight_ = 1.0;
+  demo_cost_weight_=0.1;
   learning_rate_ = 0.01;
 
   // add_randomness_ = false;
@@ -65,7 +66,7 @@ ChompParameters::ChompParameters()
   // random_jump_amount_ = 1.0;
   use_stochastic_descent_ = true;
   filter_mode_ = false;
-  trajectory_initialization_method_ = std::string("quintic-spline");
+  trajectory_initialization_method_ = std::string("fillTrajectory");
   enable_failure_recovery_ = false;
   max_recovery_attempts_ = 5;
 }
