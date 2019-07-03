@@ -78,6 +78,46 @@ Eigen::MatrixXd ChompOptimizer::csv2matrix(std::string path) {
 	return re;
 }
 
+int ChompOptimizer::csvRead(MatrixXd& outputMatrix, const string& fileName, const streamsize dPrec) {
+	ifstream inputData;
+	inputData.open(fileName);
+	cout.precision(dPrec);
+	if (!inputData)
+		return -1;
+	string fileline, filecell;
+	unsigned int prevNoOfCols = 0, noOfRows = 0, noOfCols = 0;
+	while (getline(inputData, fileline)) {
+		noOfCols = 0;
+		stringstream linestream(fileline);
+		while (getline(linestream, filecell, ',')) {
+			try {
+				stod(filecell);
+			}
+			catch (...) {
+				return -1;
+			}
+			noOfCols++;
+		}
+		if (noOfRows++ == 0)
+			prevNoOfCols = noOfCols;
+		if (prevNoOfCols != noOfCols)
+			return -1;
+	}
+	inputData.close();
+	outputMatrix.resize(noOfRows, noOfCols);
+	inputData.open(fileName);
+	noOfRows = 0;
+	while (getline(inputData, fileline)) {
+		noOfCols = 0;
+		stringstream linestream(fileline);
+		while (getline(linestream, filecell, ',')) {
+			outputMatrix(noOfRows, noOfCols++) = stod(filecell);
+		}
+		noOfRows++;
+	}
+	return 0;
+}
+
 //ROS_INFO_STREAM("示教轨迹:"<<demstration_trajectory_);
 void ChompOptimizer::GetCovainceMatrixs(std::string pathname, std::vector<Eigen::MatrixXd>&cov_matrixs){
 	string str1 = pathname;
@@ -86,7 +126,8 @@ void ChompOptimizer::GetCovainceMatrixs(std::string pathname, std::vector<Eigen:
 		std::string str3 = to_string(i);
 		std::string str4 = ".csv";
 		std::string filepath = str1 + str2 + str3+str4;
-		MatrixXd temp = csv2matrix(filepath);
+    MatrixXd temp;
+    int temp_errocode=csvRead(temp,filepath,8);
 		cov_matrixs.push_back(temp);
 	}
 	}
@@ -137,11 +178,17 @@ void ChompOptimizer::initialize()
 {
   // init some variables:
    //初始化示教轨迹
-  string demstration_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/Pdtw_head_forward_average.csv";  //一个示教均值轨迹路径
-  demo_joint_trajectory=csv2matrix(demstration_pathname);
+  string demstration_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/average_datas/Pdtw_";
+  string type=parameters_->demo_type_.c_str();
+  string forward="_forward_";
+  string average_prefix="average.csv";
+  demstration_pathname=demstration_pathname+type+forward+average_prefix;
+  int errcode1=csvRead(demo_joint_trajectory,demstration_pathname,8); //set prescion 8
   ROS_INFO_STREAM("demo trajectory  row:"<<demo_joint_trajectory.rows()<<"   coloum:"<<demo_joint_trajectory.cols());
   //初始化sigma协方差
-  string sigma_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/Pdtw_head_forward_cov";
+  string sigma_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/cov_datas/Pdtw_";
+  string cov_prefix ="cov";
+  sigma_pathname=sigma_pathname+type+forward+cov_prefix;
   GetCovainceMatrixs(sigma_pathname,demo_trajectory_sigma);
   //for(int i =0;i<demo_trajectory_sigma.size();i++){
    // ROS_INFO_STREAM("demstration_trajectory_sigma:"<<i<<demo_trajectory_sigma[0]);
@@ -379,12 +426,12 @@ bool ChompOptimizer::optimize()
     ROS_DEBUG_STREAM("Forward kinematics took " << (ros::WallTime::now() - for_time));
     double c_cost = getCollisionCost();
     double s_cost = getSmoothnessCost();
-    ROS_INFO_STREAM("smooth cost："<<s_cost);
+    ROS_INFO_STREAM("smooth cost : "<<s_cost);
     double d_cost = getDemoCost();//示教代价
   //  double cost = cCost + sCost;
   
      double cost = c_cost + s_cost +d_cost;
-
+  ROS_INFO_STREAM("total cost : "<<d_cost);
     // ROS_INFO_STREAM("Collision cost " << cCost << " smoothness cost " << sCost);
 
     /// TODO: HMC BASED COMMENTED CODE BELOW, Need to uncomment and perform extensive testing by varying the HMC
@@ -423,7 +470,7 @@ bool ChompOptimizer::optimize()
     }
     calculateSmoothnessIncrements(); 
     calculateCollisionIncrements(); //no check
-    calculateDemonstrationIncrements();
+   // calculateDemonstrationIncrements();  in demoCost  already calculate!!!!
     calculateTotalIncrements();
 
     /// TODO: HMC BASED COMMENTED CODE BELOW, Need to uncomment and perform extensive testing by varying the HMC
@@ -856,8 +903,9 @@ double ChompOptimizer::getDemoCost()
 
 
   // joint costs:
-  cout<<"free_vars_start_:"<<free_vars_start_<<"free_vars_end_:"<<free_vars_end_<<endl;
-  for (int i = free_vars_start_; i < free_vars_end_; i++) //范围 [6,104）
+  //cout<<"free_vars_start_:"<<free_vars_start_<<"free_vars_end_:"<<free_vars_end_<<endl;
+  ROS_INFO_STREAM("num_vars_free_ :"<<num_vars_free_<<"num_vars_all : "<<num_vars_all_);
+  for (int i = 1; i <= num_vars_free_; i++) 
   {
 
 
@@ -869,17 +917,16 @@ double ChompOptimizer::getDemoCost()
 
       Eigen::MatrixXd demo_joint_trajectory_T=demo_joint_trajectory.transpose();
       //ROS_INFO_STREAM("after T demo trajectory ros :"<<demo_joint_trajectory_T.rows());
-      demo_trajectory_sigma_=demo_trajectory_sigma[i-6];
+      demo_trajectory_sigma_=demo_trajectory_sigma[i-1];
       demo_trajectory_sigma_inv_=demo_trajectory_sigma_.inverse();
-      //ROS_INFO_STREAM("group_trajectoy row: "<<group_trajectory_.getNumFreePoints());
-      //ROS_INFO_STREAM("demo_trajectory_deviation row: "<<demo_trajectory_deviation.rows());
-      demo_trajectory_deviation.row(i-6)=group_trajectory_.getTrajectoryPoint(i)-demo_joint_trajectory_T.row(i-6);//两个轨迹点数目相同？
-      //ROS_INFO_STREAM("demo_trajectory_deviation row: "<<demo_trajectory_deviation.row(i-6));
-      demo_increments_.row(i) =(-demo_trajectory_sigma_inv_*(demo_trajectory_deviation.row(i-6).transpose())).transpose();
+      //ROS_INFO_STREAM(i<<"th demo_trajectory_sigma: "<<demo_trajectory_sigma_);
+      demo_trajectory_deviation.row(i-1)=group_trajectory_.getTrajectoryPoint(i)-demo_joint_trajectory_T.row(i);//两个轨迹点数目相同？
+      ROS_INFO_STREAM(i<<"th demo_trajectory_deviation: "<<demo_trajectory_deviation.row(i-1));
+      demo_increments_.row(i-1) =(-demo_trajectory_sigma_inv_*(demo_trajectory_deviation.row(i-1).transpose())).transpose();
        //ROS_INFO_STREAM("demo_increments_ row: "<<demo_increments_.row(i));
       // 取出第i行相减
      demo_cost +=
-              demo_trajectory_deviation.row(i-6)*demo_trajectory_sigma_inv_*(demo_trajectory_deviation.row(i-6).transpose());
+              demo_trajectory_deviation.row(i-1)*demo_trajectory_sigma_inv_*(demo_trajectory_deviation.row(i-1).transpose());
 
 
    }

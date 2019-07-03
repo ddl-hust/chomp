@@ -89,6 +89,7 @@ public:
   //辅助函数
   static Eigen::MatrixXd csv2matrix(std::string path);
   static void GetCovainceMatrixs(std::string pathname, std::vector<Eigen::MatrixXd>&cov_matrixs);
+  static int csvRead(Eigen::MatrixXd& outputMatrix, const std::string& fileName, const std::streamsize dPrec);
 
 private:
   inline double getPotential(double field_distance, double radius, double clearence)

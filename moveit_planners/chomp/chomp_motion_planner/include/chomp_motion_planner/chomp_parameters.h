@@ -94,7 +94,7 @@ public:
   bool enable_failure_recovery_;  /// if set to true, CHOMP tries to vary certain parameters to try and find a path if
                                   /// an initial path is not found with the specified chomp parameters
   int max_recovery_attempts_;     /// this the maximum recovery attempts to find a collision free path after an initial
-                                  /// failure to find a solution
+  std::string demo_type_;                                /// failure to find a solution
 };
 
 }  // namespace chomp

@@ -69,6 +69,7 @@ ChompParameters::ChompParameters()
   trajectory_initialization_method_ = std::string("fillTrajectory");
   enable_failure_recovery_ = false;
   max_recovery_attempts_ = 5;
+  demo_type_=std::string("mouse");
 }
 
 ChompParameters::~ChompParameters() = default;

@@ -170,6 +170,7 @@ public:
    * \brief Gets the entire trajectory matrix
    */
   Eigen::MatrixXd& getTrajectory();
+  void setTrajectory(Eigen::MatrixXd&source);
 
   /**
    * \brief Gets the block of the trajectory which can be optimized
@@ -274,6 +275,9 @@ inline size_t ChompTrajectory::getEndIndex() const
 inline Eigen::MatrixXd& ChompTrajectory::getTrajectory()
 {
   return trajectory_;
+}
+inline void ChompTrajectory::setTrajectory(Eigen::MatrixXd&source){
+  trajectory_=source;
 }
 
 inline Eigen::Block<Eigen::MatrixXd, Eigen::Dynamic, Eigen::Dynamic> ChompTrajectory::getFreeTrajectoryBlock()

@@ -50,6 +50,7 @@ void CHOMPInterface::loadParams()
   nh_.param("max_iterations_after_collision_free", params_.max_iterations_after_collision_free_, 5);
   nh_.param("smoothness_cost_weight", params_.smoothness_cost_weight_, 0.1);
   nh_.param("obstacle_cost_weight", params_.obstacle_cost_weight_, 1.0);
+  nh_.param("demo_cost_weight",params_.demo_cost_weight_,0.1);
   nh_.param("learning_rate", params_.learning_rate_, 0.01);
 
   // nh_.param("add_randomness", params_.add_randomness_, false);
@@ -73,5 +74,6 @@ void CHOMPInterface::loadParams()
             std::string("quintic-spline"));
   nh_.param("enable_failure_recovery", params_.enable_failure_recovery_, false);
   nh_.param("max_recovery_attempts", params_.max_recovery_attempts_, 5);
+  nh_.param("demo_type", params_.demo_type_,std::string("mouse"));
 }
 }  // namespace chomp_interface

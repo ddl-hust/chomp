@@ -66,7 +66,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
     return false;
   }
 
-  ChompTrajectory trajectory(planning_scene->getRobotModel(), 3.0, .03, req.group_name); //轨迹初始化，
+  ChompTrajectory trajectory(planning_scene->getRobotModel(),3.0,0.03409,req.group_name); //轨迹初始化，　89 point
   robotStateToArray(start_state, req.group_name, trajectory.getTrajectoryPoint(0)); //将开始状态存到数组第一个元素里面
 
   if (req.goal_constraints.size() != 1)
@@ -125,12 +125,23 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
     trajectory.fillInLinearInterpolation();
   else if (params.trajectory_initialization_method_.compare("cubic") == 0)
     trajectory.fillInCubicInterpolation();
+  else if(params.trajectory_initialization_method_.compare("equal") == 0)
+  {
+  std::string fill_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/average_datas/Pdtw_";
+  std::string fill_type=params.demo_type_.c_str();
+  std::string fill_forward="_forward_";
+  std::string fill_average_prefix="average.csv";
+  fill_pathname=fill_pathname+fill_type+fill_forward+fill_average_prefix;
+  Eigen::MatrixXd fill_trajectory;
+  int fill_errcode=chomp::ChompOptimizer::csvRead(fill_trajectory,fill_pathname,8); //set prescion 8
+  trajectory.setTrajectory(fill_trajectory);
+  }
+  /* 
   else if (params.trajectory_initialization_method_.compare("fillTrajectory") == 0)  //通过已有轨迹的到轨迹
   {  
     ROS_INFO_NAMED("chomp_planner", "CHOMP trajectory initialized using method: %s ",
                  (params.trajectory_initialization_method_).c_str());
-    /* ************************需要在此处填充我们自己轨迹*****************************
-    这就需要将保存在matrixXd 里面的轨迹转化为robottrajectorty 消息填充到res.trajectory_*/
+   
   auto result = std::make_shared<robot_trajectory::RobotTrajectory>(planning_scene->getRobotModel(), req.group_name);
   // fill in the entire trajectory
   std::string demstration_pathname="/home/deng/ros/ws_moveit/src/moveit/moveit_planners/resource/Pdtw_head_forward_average.csv";
@@ -138,7 +149,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   ROS_INFO_STREAM("fill trjajectory:"<<source_trajectory);
   for (size_t i = 0; i <= source_trajectory.rows(); i++)
   {
-    Eigen::VectorXd() source =  source_trajectory.row(i);
+    Eigen::VectorXd　source =  source_trajectory.row(i);
     
     ROS_INFO_STREAM("fill trjajectory:"<<source);
     auto state = std::make_shared<robot_state::RobotState>(start_state);
@@ -154,7 +165,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   res.trajectory_.resize(1); //分配内存，解决[] 非法内存访问
   res.trajectory_[0] = result;
 
-    /********************填充结束******************* */
+
     if (!(trajectory.fillInFromTrajectory(*res.trajectory_[0])))  //??? res.trajectory_[0]
     {
       ROS_ERROR_STREAM_NAMED("chomp_planner", "Input trajectory has less than 2 points, "
@@ -162,6 +173,7 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
       return false;
     }
   }
+  */
   else
     ROS_ERROR_STREAM_NAMED("chomp_planner", "invalid interpolation method specified in the chomp_planner file");
 
