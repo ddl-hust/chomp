@@ -258,20 +258,38 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
   // assume that the trajectory is now optimized, fill in the output structure:
 
   ROS_DEBUG_NAMED("chomp_planner", "Output trajectory has %zd joints", trajectory.getNumJoints());
-
+  size_t num_point=trajectory.getNumPoints();
+  size_t num_joint=trajectory.getNumJoints();
   auto result = std::make_shared<robot_trajectory::RobotTrajectory>(planning_scene->getRobotModel(), req.group_name);
+  Eigen::VectorXd joint_velocities; //待填充速度
+  std::vector<double>initial_vel(7,0.0);
+  Eigen::MatrixXd diff_matrix=Eigen::MatrixXd::Zero(num_point,num_point);
+  Eigen::MatrixXd velocity_matrix =Eigen::MatrixXd::Zero(num_point,num_joint);
+  diff_matrix =  chomp::ChompCost::getDiffMatrix(num_point,&DIFF_RULES[0][0]); //速度向
+  for(size_t i=0;i<num_joint;i++){
+    velocity_matrix.col(i)=diff_matrix*trajectory.getJointTrajectory(i);
+  }
+
   // fill in the entire trajectory
   for (size_t i = 0; i < trajectory.getNumPoints(); i++)
   {
     const Eigen::MatrixXd::RowXpr source = trajectory.getTrajectoryPoint(i);
+    joint_velocities = Eigen::VectorXd::Zero(trajectory.getNumJoints());
+    //std::cout<<joint_velocities<<std::endl;
     auto state = std::make_shared<robot_state::RobotState>(start_state);
     size_t joint_index = 0;
+    size_t vel_index=0;
     for (const robot_state::JointModel* jm : result->getGroup()->getActiveJointModels())
     {
       assert(jm->getVariableCount() == 1);
       state->setVariablePosition(jm->getFirstVariableIndex(), source[joint_index++]); //就是将每个关节值设置到state  API void moveit::core::RobotState::setVariablePosition ( int index, double value)
+      if(i==0||i==num_point-1){
+        state->setVariableVelocity(jm->getFirstVariableIndex(), initial_vel[vel_index++]);
+      }
+      else
+        state->setVariableVelocity(jm->getFirstVariableIndex(), velocity_matrix(i,vel_index++)); //速度　跑pvt 需要
     }
-    result->addSuffixWayPoint(state, 0.0);  //??? duration 为0.0
+    result->addSuffixWayPoint(state, 0.1);  //??? duration 为0.0
   }
 
   res.trajectory_.resize(1); //分配内存，解决[] 非法内存访问

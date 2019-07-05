@@ -41,7 +41,7 @@
 #include <moveit/planning_interface/planning_request.h>
 #include <moveit/planning_interface/planning_response.h>
 #include <moveit/planning_scene/planning_scene.h>
-
+#include<chomp_motion_planner/chomp_cost.h>
 namespace chomp
 {
 class ChompPlanner

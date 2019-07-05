@@ -51,6 +51,7 @@ class ChompCost
 public:
   ChompCost(const ChompTrajectory& trajectory, int joint_number, const std::vector<double>& derivative_costs,
             double ridge_factor = 0.0);
+  ChompCost();
   virtual ~ChompCost();
 
   template <typename Derived>
@@ -65,6 +66,7 @@ public:
   double getMaxQuadCostInvValue() const;
 
   void scale(double scale);
+  static Eigen::MatrixXd getDiffMatrix(int size, const double* diff_rule) ; //将私有改为公有 static
 
 private:
   Eigen::MatrixXd quad_cost_full_;
@@ -72,7 +74,7 @@ private:
   // Eigen::VectorXd linear_cost_;
   Eigen::MatrixXd quad_cost_inv_;
 
-  Eigen::MatrixXd getDiffMatrix(int size, const double* diff_rule) const;
+  
 };
 
 template <typename Derived>
