@@ -426,12 +426,12 @@ bool ChompOptimizer::optimize()
     ROS_DEBUG_STREAM("Forward kinematics took " << (ros::WallTime::now() - for_time));
     double c_cost = getCollisionCost();
     double s_cost = getSmoothnessCost();
-    ROS_INFO_STREAM("smooth cost : "<<s_cost);
+    ROS_DEBUG_STREAM("smooth cost : "<<s_cost);
     double d_cost = getDemoCost();//示教代价
   //  double cost = cCost + sCost;
   
      double cost = c_cost + s_cost +d_cost;
-  ROS_INFO_STREAM("total cost : "<<d_cost);
+  ROS_DEBUG_STREAM("total cost : "<<d_cost);
     // ROS_INFO_STREAM("Collision cost " << cCost << " smoothness cost " << sCost);
 
     /// TODO: HMC BASED COMMENTED CODE BELOW, Need to uncomment and perform extensive testing by varying the HMC
@@ -904,7 +904,7 @@ double ChompOptimizer::getDemoCost()
 
   // joint costs:
   //cout<<"free_vars_start_:"<<free_vars_start_<<"free_vars_end_:"<<free_vars_end_<<endl;
-  ROS_INFO_STREAM("num_vars_free_ :"<<num_vars_free_<<"num_vars_all : "<<num_vars_all_);
+  // ROS_INFO_STREAM("num_vars_free_ :"<<num_vars_free_<<"num_vars_all : "<<num_vars_all_);
   for (int i = 1; i <= num_vars_free_; i++) 
   {
 
@@ -921,7 +921,7 @@ double ChompOptimizer::getDemoCost()
       demo_trajectory_sigma_inv_=demo_trajectory_sigma_.inverse();
       //ROS_INFO_STREAM(i<<"th demo_trajectory_sigma: "<<demo_trajectory_sigma_);
       demo_trajectory_deviation.row(i-1)=group_trajectory_.getTrajectoryPoint(i)-demo_joint_trajectory_T.row(i);//两个轨迹点数目相同？
-      ROS_INFO_STREAM(i<<"th demo_trajectory_deviation: "<<demo_trajectory_deviation.row(i-1));
+      // ROS_INFO_STREAM(i<<"th demo_trajectory_deviation: "<<demo_trajectory_deviation.row(i-1));
       demo_increments_.row(i-1) =(-demo_trajectory_sigma_inv_*(demo_trajectory_deviation.row(i-1).transpose())).transpose();
        //ROS_INFO_STREAM("demo_increments_ row: "<<demo_increments_.row(i));
       // 取出第i行相减
@@ -930,7 +930,7 @@ double ChompOptimizer::getDemoCost()
 
 
    }
-  cout<<"demo cost:"<<demo_cost<<endl;
+  cout<<"demo cost:"<< parameters_->demo_cost_weight_ * demo_cost<<endl;
   return parameters_->demo_cost_weight_ * demo_cost;
   // 最后返回值是有权的，权重来自文档初值
 }
